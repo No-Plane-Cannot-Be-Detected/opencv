@@ -351,7 +351,7 @@ public:
             return false;
 
         // polish final model
-        if (params->getFinalPolisher() != PolishingMethod::NonePolisher) {
+        if (!model_polisher.empty()) {
             Mat polished_model;
             Score polisher_score;
             if (model_polisher->polishSoFarTheBestModel(best_model, best_score,
@@ -666,6 +666,8 @@ public:
             case (EstimationMethod::P6P):
                 avg_num_models = 1; time_for_model_est = 300;
                 sample_size = 6; est_error = ErrorMetric ::RERPOJ; break;
+            case (EstimationMethod::POINT_CLOUD_MODEL):
+                break;
             default: CV_Error(cv::Error::StsNotImplemented, "Estimator has not implemented yet!");
         }
 
@@ -685,6 +687,7 @@ public:
     void setPolisher (PolishingMethod polisher_) override { polisher = polisher_; }
     void setParallel (bool is_parallel_) override { is_parallel = is_parallel_; }
     void setError (ErrorMetric error_) override { est_error = error_; }
+    void setSampleSize (int sample_size_) override { sample_size = sample_size_; }
     void setLocalOptimization (LocalOptimMethod lo_) override { lo = lo_; }
     void setKNearestNeighhbors (int knn_) override { k_nearest_neighbors = knn_; }
     void setNeighborsType (NeighborSearchMethod neighbors) override { neighborsType = neighbors; }
@@ -1032,4 +1035,70 @@ bool run (const Ptr<const Model> &params, InputArray points1, InputArray points2
     }
     return false;
 }
+
+
+int fittingGeometricModelBySAC (const Ptr<const Model> &params,
+        Mat &points, Ptr<RansacOutput> &ransac_output){
+
+    Ptr<Sampler> sampler;
+    Ptr<Quality> quality;
+    Ptr<ModelVerifier> verifier;
+    Ptr<LocalOptimization> lo;
+    Ptr<Degeneracy> degeneracy;
+    Ptr<TerminationCriteria> termination;
+    Ptr<FinalModelPolisher> polisher;
+
+    Ptr<usac::MinimalSolver> min_solver;
+    Ptr<usac::NonMinimalSolver> non_min_solver;
+    Ptr<usac::Estimator> estimator;
+    Ptr<usac::Error> error;
+
+    min_solver = usac::PlaneModelMinimalSolver::create(points); // TODO Choose according to model type
+    non_min_solver = usac::PlaneModelNonMinimalSolver::create(points); // TODO
+    estimator = usac::PointCloudModelEstimator::create(min_solver, non_min_solver);
+    error = usac::PlaneModelError::create(points); // TODO
+
+    int state = params->getRandomGeneratorState();
+    int points_size = points.rows;
+    const int min_sample_size = params->getSampleSize();
+    double threshold = params->getThreshold(), max_thr = params->getMaximumThreshold();
+
+    sampler = UniformSampler::create(state++, min_sample_size, points_size);
+    quality = RansacQuality::create(points_size, threshold, error);
+    verifier = ModelVerifier::create();
+
+    if (params->getLO() != LocalOptimMethod::LOCAL_OPTIM_NULL) {
+        Ptr<RandomGenerator> lo_sampler = UniformRandomGenerator::create(state++, points_size, params->getLOSampleSize());
+        switch (params->getLO()) {
+            case LocalOptimMethod::LOCAL_OPTIM_INNER_LO:
+                lo = InnerIterativeLocalOptimization::create(estimator, quality, lo_sampler,
+                                                             points_size, threshold, false, params->getLOIterativeSampleSize(),
+                                                             params->getLOInnerMaxIters(), params->getLOIterativeMaxIters(),
+                                                             params->getLOThresholdMultiplier()); break;
+            case LocalOptimMethod::LOCAL_OPTIM_INNER_AND_ITER_LO:
+                lo = InnerIterativeLocalOptimization::create(estimator, quality, lo_sampler,
+                                                             points_size, threshold, true, params->getLOIterativeSampleSize(),
+                                                             params->getLOInnerMaxIters(), params->getLOIterativeMaxIters(),
+                                                             params->getLOThresholdMultiplier()); break;
+
+            default: CV_Error(cv::Error::StsNotImplemented , "Local Optimization is not implemented!");
+        }
+    }
+
+    degeneracy = makePtr<Degeneracy>();
+    termination = StandardTerminationCriteria::create
+            (params->getConfidence(), points_size, min_sample_size, params->getMaxIters());
+
+
+
+    Ransac ransac (params, points_size, estimator, quality, sampler,
+                   termination, verifier, degeneracy, lo, polisher, params->isParallel(), state);
+
+    if (ransac.run(ransac_output)){
+        return 1;
+    }
+
+    return 0;
+}
+
 }}

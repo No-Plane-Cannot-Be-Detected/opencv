@@ -217,6 +217,73 @@ Ptr<PnPEstimator> PnPEstimator::create (const Ptr<MinimalSolver> &min_solver_,
     return makePtr<PnPEstimatorImpl>(min_solver_, non_min_solver_);
 }
 
+/////////////////////////////////////////////////////////////////////////
+class PointCloudModelEstimatorImpl : public PointCloudModelEstimator {
+private:
+    const Ptr<MinimalSolver> min_solver;
+    const Ptr<NonMinimalSolver> non_min_solver;
+    const ModelConstraintFunctionPtr custom_model_constraints;
+
+    inline int filteringModel(std::vector<Mat> M, int models_count,
+            std::vector<Mat> &valid_models) const {
+        int valid_models_count = 0;
+        if (nullptr == custom_model_constraints) {
+            valid_models_count = models_count;
+            for (int i = 0; i < models_count; ++i)
+                valid_models[i] = M[i];
+        } else {
+            for (int i = 0; i < models_count; ++i)
+                // filtering Models with custom_model_constraints
+                if ((*custom_model_constraints)(M[i]))
+                    valid_models[valid_models_count++] = M[i];
+        }
+
+        return valid_models_count;
+    }
+
+public:
+    explicit PointCloudModelEstimatorImpl (const Ptr<MinimalSolver> &min_solver_,
+            const Ptr<NonMinimalSolver> &non_min_solver_,
+            const ModelConstraintFunctionPtr custom_model_constraints_) :
+            min_solver(min_solver_), non_min_solver(non_min_solver_),
+            custom_model_constraints(custom_model_constraints_) {}
+
+    int estimateModels (const std::vector<int> &sample, std::vector<Mat> &models) const override {
+        std::vector<Mat> M;
+        const int models_count = min_solver->estimate(sample, M);
+        return filteringModel(M, models_count, models);
+    }
+
+    int estimateModelNonMinimalSample (const std::vector<int> &sample, int sample_size,
+            std::vector<Mat> &models, const std::vector<double> &weights) const override {
+        std::vector<Mat> M;
+        const int models_count = non_min_solver->estimate(sample, sample_size, M, weights);
+        return filteringModel(M, models_count, models);
+    }
+
+    int getMinimalSampleSize() const override {
+        return min_solver->getSampleSize();
+    }
+    int getNonMinimalSampleSize() const override {
+        return non_min_solver->getMinimumRequiredSampleSize();
+    }
+    int getMaxNumSolutions () const override {
+        return min_solver->getMaxNumberOfSolutions();
+    }
+    int getMaxNumSolutionsNonMinimal () const override {
+        return non_min_solver->getMaxNumberOfSolutions();
+    }
+    Ptr<Estimator> clone() const override {
+        return makePtr<PointCloudModelEstimatorImpl>(min_solver->clone(), non_min_solver->clone(),
+                                                     custom_model_constraints);
+    }
+};
+Ptr<PointCloudModelEstimator> PointCloudModelEstimator::create (const Ptr<MinimalSolver> &min_solver_,
+        const Ptr<NonMinimalSolver> &non_min_solver_,
+        const ModelConstraintFunctionPtr custom_model_constraints_) {
+    return makePtr<PointCloudModelEstimatorImpl>(min_solver_, non_min_solver_, custom_model_constraints_);
+}
+
 ///////////////////////////////////////////// ERROR /////////////////////////////////////////
 // Symmetric Reprojection Error
 class ReprojectionErrorSymmetricImpl : public ReprojectionErrorSymmetric {
@@ -532,6 +599,172 @@ public:
 };
 Ptr<ReprojectionErrorPmatrix> ReprojectionErrorPmatrix::create(const Mat &points) {
     return makePtr<ReprojectionErrorPmatrixImpl>(points);
+}
+
+class PlaneModelErrorImpl : public PlaneModelError {
+private:
+    const Mat * points_mat;
+    const float * const points;
+    //! ax + by + cz + d = 0
+    float a, b, c ,d;
+    std::vector<float> errors_cache;
+    bool cache_valid;
+
+public:
+    explicit PlaneModelErrorImpl(const Mat &points_)
+    : points_mat(&points_), points((float *) points_.data),
+    a(0), b(0), c(0), d(0), errors_cache(points_.rows), cache_valid(false)
+    {
+        CV_DbgAssert(points);
+    }
+
+    inline void setModelParameters(const Mat &model) override
+    {
+        CV_Assert(!model.empty());
+        CV_CheckTypeEQ(model.depth(), CV_64F, "");
+
+        const double * const p = (double *) model.data;
+        double coeff_a = p[0], coeff_b = p[1], coeff_c = p[2], coeff_d = p[3];
+        // Format for easy distance calculation
+        double magnitude_abc = sqrt(coeff_a * coeff_a + coeff_b * coeff_b + coeff_c * coeff_c);
+        if (0 != magnitude_abc) {
+            coeff_a = coeff_a / magnitude_abc;
+            coeff_b = coeff_b / magnitude_abc;
+            coeff_c = coeff_c / magnitude_abc;
+            coeff_d = coeff_d / magnitude_abc;
+        }
+        cache_valid = cache_valid && a == (float) coeff_a && b == (float) coeff_b
+                &&  c == (float) coeff_c && d == (float) coeff_d;
+
+        a = (float) coeff_a;
+        b = (float) coeff_b;
+        c = (float) coeff_c;
+        d = (float) coeff_d;
+    }
+
+    inline float getError(int point_idx) const override
+    {
+        const float *pts_ptr_base = points + 3 * point_idx;
+        float error = a * pts_ptr_base[0] + b * pts_ptr_base[1] + c * pts_ptr_base[2] + d;
+        return error * error;
+    }
+
+    const std::vector<float> &getErrors(const Mat &model) override
+    {
+        setModelParameters(model);
+
+        if (cache_valid)
+            return errors_cache;
+
+        const int pts_size = points_mat->rows;
+        for (int i = 0; i < pts_size; ++i) {
+            const float *pts_ptr_base = points + 3 * i;
+            float error = a * pts_ptr_base[0] + b * pts_ptr_base[1] + c * pts_ptr_base[2] + d;
+            errors_cache[i] = error * error;
+        }
+        cache_valid = true;
+        return errors_cache;
+    }
+
+    Ptr<Error> clone () const override {
+        return makePtr<PlaneModelErrorImpl>(*points_mat);
+    }
+
+};
+Ptr<PlaneModelError> PlaneModelError::create(const Mat &points) {
+    return makePtr<PlaneModelErrorImpl>(points);
+}
+
+class SphereModelErrorImpl : public SphereModelError {
+private:
+    const Mat * points_mat;
+    const float * const points;
+    float x, y, z, radius;
+    std::vector<float> errors_cache;
+    bool cache_valid;
+
+public:
+    explicit SphereModelErrorImpl(const Mat &points_)
+            : points_mat(&points_), points((float *) points_.data),
+              x(0), y(0), z(0), radius(0),
+              errors_cache(points_.rows), cache_valid(false)
+    {
+
+    }
+
+    inline void setModelParameters(const Mat &model) override
+    {
+
+    }
+
+    inline float getError(int point_idx) const override
+    {
+
+//        Point3f p = pts(point_idx);
+//        Point3f center(float(model(0)),float(model(1)),float(model(2)));
+//        double distanceFromCenter  = norm(p - center);
+//        double distanceFromSurface = fabs(distanceFromCenter - model(3));
+//
+//        return (float)distanceFromSurface;
+        return 0;
+    }
+
+    const std::vector<float> &getErrors(const Mat &model) override
+    {
+        return errors_cache;
+    }
+
+    Ptr<Error> clone () const override {
+        return makePtr<SphereModelErrorImpl>(*points_mat);
+    }
+
+};
+Ptr<SphereModelError> SphereModelError::create(const Mat &points) {
+    return makePtr<SphereModelErrorImpl>(points);
+}
+
+class CylinderModelErrorImpl : public CylinderModelError {
+private:
+    const Mat * points_mat;
+    const float * const points;
+    float center_x, center_y, center_z, radius;
+    float direction_x, direction_y, direction_z;
+    std::vector<float> errors_cache;
+    bool cache_valid;
+
+public:
+    explicit CylinderModelErrorImpl(const Mat &points_)
+            : points_mat(&points_), points((float *) points_.data),
+              center_x(0), center_y(0), center_z(0), radius(0),
+              direction_x(0), direction_y(0), direction_z(0),
+              errors_cache(points_.rows), cache_valid(false)
+
+    {
+
+    }
+
+    inline void setModelParameters(const Mat &model) override
+    {
+
+    }
+
+    inline float getError(int point_idx) const override
+    {
+        return 0;
+    }
+
+    const std::vector<float> &getErrors(const Mat &model) override
+    {
+        return errors_cache;
+    }
+
+    Ptr<Error> clone () const override {
+        return makePtr<CylinderModelErrorImpl>(*points_mat);
+    }
+
+};
+Ptr<CylinderModelError> CylinderModelError::create(const Mat &points) {
+    return makePtr<CylinderModelErrorImpl>(points);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

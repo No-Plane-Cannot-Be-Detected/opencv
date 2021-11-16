@@ -6,10 +6,15 @@
 #define OPENCV_USAC_USAC_HPP
 
 namespace cv { namespace usac {
-enum EstimationMethod { Homography, Fundamental, Fundamental8, Essential, Affine, P3P, P6P};
+enum EstimationMethod { Homography, Fundamental, Fundamental8, Essential, Affine, P3P, P6P, POINT_CLOUD_MODEL};
 enum VerificationMethod { NullVerifier, SprtVerifier };
 enum PolishingMethod { NonePolisher, LSQPolisher };
 enum ErrorMetric {DIST_TO_LINE, SAMPSON_ERR, SGD_ERR, SYMM_REPR_ERR, FORW_REPR_ERR, RERPOJ};
+
+//! Custom function that take the model coefficients and return whether the model is acceptable or not
+//using ModelConstraintFunction = std::function<bool(const Mat &/*model_coefficients*/)>;
+using ModelConstraintFunctionPtr = bool (*)(const Mat &/*model_coefficients*/);
+
 
 // Abstract Error class
 class Error : public Algorithm {
@@ -56,6 +61,24 @@ public:
 class ReprojectionErrorAffine : public Error {
 public:
     static Ptr<ReprojectionErrorAffine> create(const Mat &points);
+};
+
+// Error for plane model
+class PlaneModelError : public Error {
+public:
+    static Ptr<PlaneModelError> create(const Mat &points);
+};
+
+// Error for sphere model
+class SphereModelError : public Error {
+public:
+    static Ptr<SphereModelError> create(const Mat &points);
+};
+
+// Error for cylinder model
+class CylinderModelError : public Error {
+public:
+    static Ptr<CylinderModelError> create(const Mat &points);
 };
 
 // Normalizing transformation of data points
@@ -125,6 +148,24 @@ public:
     static Ptr<AffineMinimalSolver> create(const Mat &points_);
 };
 
+//-------------------------- 3D PLANE -----------------------
+class PlaneModelMinimalSolver : public MinimalSolver {
+public:
+    static Ptr<PlaneModelMinimalSolver> create(const Mat &points_);
+};
+
+//-------------------------- 3D CYLINDER -----------------------
+class CylinderModelMinimalSolver : public MinimalSolver {
+public:
+    static Ptr<CylinderModelMinimalSolver> create(const Mat &points_);
+};
+
+//-------------------------- 3D SPHERE -----------------------
+class SphereModelMinimalSolver : public MinimalSolver {
+public:
+    static Ptr<SphereModelMinimalSolver> create(const Mat &points_);
+};
+
 //////////////////////////////////////// NON MINIMAL SOLVER ///////////////////////////////////////
 class NonMinimalSolver : public Algorithm {
 public:
@@ -171,6 +212,24 @@ public:
 class AffineNonMinimalSolver : public NonMinimalSolver {
 public:
     static Ptr<AffineNonMinimalSolver> create(const Mat &points_);
+};
+
+//-------------------------- 3D PLANE -----------------------
+class PlaneModelNonMinimalSolver : public NonMinimalSolver {
+public:
+    static Ptr<PlaneModelNonMinimalSolver> create(const Mat &points_);
+};
+
+//-------------------------- 3D SPHERE -----------------------
+class SphereModelNonMinimalSolver : public NonMinimalSolver {
+public:
+    static Ptr<SphereModelNonMinimalSolver> create(const Mat &points_);
+};
+
+//-------------------------- 3D CYLINDER -----------------------
+class CylinderModelNonMinimalSolver : public NonMinimalSolver {
+public:
+    static Ptr<CylinderModelNonMinimalSolver> create(const Mat &points_);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -383,6 +442,13 @@ class PnPEstimator : public Estimator {
 public:
     static Ptr<PnPEstimator> create (const Ptr<MinimalSolver> &min_solver_,
             const Ptr<NonMinimalSolver> &non_min_solver_);
+};
+
+class PointCloudModelEstimator : public Estimator {
+public:
+    static Ptr<PointCloudModelEstimator> create (const Ptr<MinimalSolver> &min_solver_,
+            const Ptr<NonMinimalSolver> &non_min_solver_,
+            ModelConstraintFunctionPtr custom_model_constraints_ = nullptr);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -763,6 +829,7 @@ public:
     virtual int getMaxItersBeforeLO () const = 0;
 
     // setters
+    virtual void setSampleSize (int sample_size_) = 0;
     virtual void setLocalOptimization (LocalOptimMethod lo_) = 0;
     virtual void setKNearestNeighhbors (int knn_) = 0;
     virtual void setNeighborsType (NeighborSearchMethod neighbors) = 0;
@@ -813,6 +880,10 @@ void setParameters (Ptr<Model> &params, EstimationMethod estimator, const UsacPa
 bool run (const Ptr<const Model> &params, InputArray points1, InputArray points2, int state,
       Ptr<RansacOutput> &ransac_output, InputArray K1_, InputArray K2_,
       InputArray dist_coeff1, InputArray dist_coeff2);
+
+int fittingGeometricModelBySAC (const Ptr<const Model> &params,
+        Mat &points, Ptr<RansacOutput> &ransac_output);
+
 }}
 
 #endif //OPENCV_USAC_USAC_HPP
