@@ -1040,6 +1040,15 @@ bool run (const Ptr<const Model> &params, InputArray points1, InputArray points2
 int fittingGeometricModelBySAC (const Ptr<const Model> &params,
         Mat &points, Ptr<RansacOutput> &ransac_output){
 
+    int state = params->getRandomGeneratorState();
+    int points_size = points.rows;
+    const int min_sample_size = params->getSampleSize();
+    double threshold = params->getThreshold(), max_thr = params->getMaximumThreshold();
+
+    if (points_size < min_sample_size) {
+        return 0;
+    }
+
     Ptr<Sampler> sampler;
     Ptr<Quality> quality;
     Ptr<ModelVerifier> verifier;
@@ -1057,11 +1066,6 @@ int fittingGeometricModelBySAC (const Ptr<const Model> &params,
     non_min_solver = usac::PlaneModelNonMinimalSolver::create(points); // TODO
     estimator = usac::PointCloudModelEstimator::create(min_solver, non_min_solver);
     error = usac::PlaneModelError::create(points); // TODO
-
-    int state = params->getRandomGeneratorState();
-    int points_size = points.rows;
-    const int min_sample_size = params->getSampleSize();
-    double threshold = params->getThreshold(), max_thr = params->getMaximumThreshold();
 
     sampler = UniformSampler::create(state++, min_sample_size, points_size);
     quality = RansacQuality::create(points_size, threshold, error);
