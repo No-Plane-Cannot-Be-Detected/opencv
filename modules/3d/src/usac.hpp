@@ -15,6 +15,85 @@ enum ErrorMetric {DIST_TO_LINE, SAMPSON_ERR, SGD_ERR, SYMM_REPR_ERR, FORW_REPR_E
 //using ModelConstraintFunction = std::function<bool(const Mat &/*model_coefficients*/)>;
 using ModelConstraintFunctionPtr = bool (*)(const Mat &/*model_coefficients*/);
 
+class UsacConfig : public Algorithm {
+public:
+    virtual double getThreshold () const = 0;
+    virtual int getMaxIterations () const = 0;
+    virtual int getMaxIterationsBeforeLO () const = 0;
+    virtual int getMaxNumHypothesisToTestBeforeRejection() const = 0;
+    virtual double getConfidence () const = 0;
+    virtual int getRandomGeneratorState () const = 0;
+    //! The number of threads to be used.
+    //! (0 sets the value automatically, a negative number turns parallelization off)
+    virtual int getNumberOfThreads() const = 0;
+
+    virtual NeighborSearchMethod getNeighborsSearchMethod () const = 0;
+    virtual SamplingMethod getSamplingMethod () const = 0;
+    virtual ScoreMethod getScoreMethod () const = 0;
+    virtual LocalOptimMethod getLOMethod () const = 0;
+
+    virtual bool isMaskRequired () const = 0;
+
+};
+
+class SimpleUsacConfig : public UsacConfig {
+public:
+    virtual void setThreshold(double threshold_) = 0;
+    virtual void setMaxIterations(int max_iterations_) = 0;
+    virtual void setMaxIterationsBeforeLo(int max_iterations_before_lo_) = 0;
+    virtual void setMaxNumHypothesisToTestBeforeRejection(int max_num_hypothesis_to_test_before_rejection_) = 0;
+    virtual void setConfidence(double confidence_) = 0;
+    virtual void setRandomGeneratorState(int random_generator_state_) = 0;
+    virtual void setNumberOfThreads(int number_of_threads_) = 0;
+    virtual void setNeighborsSearchMethod(NeighborSearchMethod neighbors_search_method_) = 0;
+    virtual void setSamplingMethod(SamplingMethod sampling_method_) = 0;
+    virtual void setScoreMethod(ScoreMethod score_method_) = 0;
+    virtual void setLoMethod(LocalOptimMethod lo_method_) = 0;
+    virtual void maskRequired(bool need_mask_) = 0;
+
+    static Ptr<SimpleUsacConfig> create();
+
+};
+
+//struct UsacConfig
+//{ // in alphabetical order
+//    UsacConfig();
+//    double confidence;
+//    int loIterations;
+//    LocalOptimMethod loMethod;
+//    int loSampleSize;
+//    int maxNumHypothesisToTestBeforeRejection;
+//    int maxIterations;
+//    int maxIterationsBeforeLO;
+//    bool needMask;
+//    NeighborSearchMethod neighborsSearch;
+//    //! The number of threads to be used.
+//    //! (0 sets the value automatically, a negative number turns parallelization off)
+//    int numberOfThreads;
+//    int randomGeneratorState;
+//    SamplingMethod sampler;
+//    ScoreMethod score;
+//    double threshold;
+//
+//};
+
+//UsacConfig::UsacConfig()
+//{
+//    confidence = 0.999;
+//    loIterations = 5;
+//    loMethod = LocalOptimMethod::LOCAL_OPTIM_INNER_LO;
+//    loSampleSize = 14;
+//    maxNumHypothesisToTestBeforeRejection = 15;
+//    maxIterations = 2500;
+//    maxIterationsBeforeLO = 100;
+//    needMask = true;
+//    neighborsSearch = NeighborSearchMethod::NEIGH_GRID;
+//    numberOfThreads = -1;
+//    randomGeneratorState = 0;
+//    sampler = SamplingMethod::SAMPLING_UNIFORM;
+//    score = ScoreMethod::SCORE_METHOD_RANSAC;
+//    threshold = 1.5;
+//}
 
 // Abstract Error class
 class Error : public Algorithm {
@@ -850,6 +929,31 @@ public:
          double confidence_=0.95, int max_iterations_=5000, ScoreMethod score_ =ScoreMethod::SCORE_METHOD_MSAC);
 };
 
+/////////////////////////////////////////  UniversalRANSAC  ////////////////////////////////////////
+
+class UniversalRANSAC {
+protected:
+    const Ptr<const UsacConfig> config;
+    const Ptr<const Estimator> _estimator;
+    const Ptr<Quality> _quality;
+    const Ptr<Sampler> _sampler;
+    const Ptr<TerminationCriteria> _termination_criteria;
+    const Ptr<ModelVerifier> _model_verifier;
+    const Ptr<Degeneracy> _degeneracy;
+    const Ptr<LocalOptimization> _local_optimization;
+    const Ptr<FinalModelPolisher> _model_polisher;
+
+    const int points_size;
+public:
+
+    UniversalRANSAC (const Ptr<const UsacConfig> &config_, int points_size_, const Ptr<const Estimator> &estimator_, const Ptr<Quality> &quality_,
+            const Ptr<Sampler> &sampler_, const Ptr<TerminationCriteria> &termination_criteria_,
+            const Ptr<ModelVerifier> &model_verifier_, const Ptr<Degeneracy> &degeneracy_,
+            const Ptr<LocalOptimization> &local_optimization_, const Ptr<FinalModelPolisher> &model_polisher_);
+
+    bool run(Ptr<RansacOutput> &ransac_output);
+};
+
 Mat findHomography(InputArray srcPoints, InputArray dstPoints, int method,
                    double ransacReprojThreshold, OutputArray mask,
                    const int maxIters, const double confidence);
@@ -880,9 +984,6 @@ void setParameters (Ptr<Model> &params, EstimationMethod estimator, const UsacPa
 bool run (const Ptr<const Model> &params, InputArray points1, InputArray points2, int state,
       Ptr<RansacOutput> &ransac_output, InputArray K1_, InputArray K2_,
       InputArray dist_coeff1, InputArray dist_coeff2);
-
-int fittingGeometricModelBySAC (const Ptr<const Model> &params,
-        Mat &points, Ptr<RansacOutput> &ransac_output);
 
 }}
 

@@ -34,8 +34,8 @@ enum SacMethod
 enum SacModelType
 {
     SAC_MODEL_PLANE,
-    //    SAC_MODEL_SPHERE,
-    //    SAC_MODEL_CYLINDER,
+//    SAC_MODEL_SPHERE,
+//    SAC_MODEL_CYLINDER,
 
 };
 
@@ -54,8 +54,6 @@ public:
     }
 
     ~SACSegmentation() override = default;
-
-    void setPointCloud(const Mat &input_pts);
 
     //-------------------------- Getter and Setter -----------------------
 
@@ -190,12 +188,9 @@ public:
      * @param[out] models_coefficients The resultant models coefficients.
      * @return Number of final resultant models obtained by segmentation.
      */
-    int segment(OutputArray labels, OutputArray models_coefficients);
+    int segment(InputArray input_pts, OutputArray labels, OutputArray models_coefficients);
 
 protected:
-
-    //! Point cloud data.
-    PointCloud input_pts;
 
     //! The type of sample consensus model used.
     SacModelType sac_model_type;
@@ -223,6 +218,15 @@ protected:
 
     //! A user defined function that takes model coefficients and returns whether the model is acceptable or not.
     ModelConstraintFunctionPtr custom_model_constraints;
+
+    /**
+     * @brief Execute segmentation of a single model using the sample consensus method.
+     *
+     * @param label label[i] is 1 means point i is inlier point of model
+     * @param model_coefficients The resultant model coefficients.
+     * @return number of model inliers
+     */
+    int segmentSingle(Mat &points, std::vector<bool> &label, Mat &model_coefficients);
 
 };
 
