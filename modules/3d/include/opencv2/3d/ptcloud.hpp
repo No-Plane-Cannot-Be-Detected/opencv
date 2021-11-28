@@ -34,7 +34,7 @@ enum SacMethod
 enum SacModelType
 {
     SAC_MODEL_PLANE,
-//    SAC_MODEL_SPHERE,
+    SAC_MODEL_SPHERE,
 //    SAC_MODEL_CYLINDER,
 
 };
@@ -99,6 +99,20 @@ public:
     inline double getDistanceThreshold() const
     {
         return threshold;
+    }
+
+    //! Set the minimum and maximum radius limits for the model.
+    inline void setRadiusLimits(double radius_min_, double radius_max_)
+    {
+        radius_min = radius_min_;
+        radius_max = radius_max_;
+    }
+
+    //! Get the minimum and maximum radius limits for the model.
+    inline void getRadiusLimits (double &radius_min_, double &radius_max_) const
+    {
+        radius_min_ = radius_min;
+        radius_max_ = radius_max;
     }
 
     //! Set the maximum number of iterations to attempt.
@@ -200,6 +214,9 @@ protected:
 
     //! Considered as inlier point if distance to the model less than threshold.
     double threshold;
+
+    //! The minimum and maximum radius limits for the model.
+    double radius_min, radius_max;
 
     //!  The maximum number of iterations to attempt.
     int max_iterations;

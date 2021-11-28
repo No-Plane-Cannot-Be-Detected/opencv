@@ -675,42 +675,75 @@ Ptr<PlaneModelError> PlaneModelError::create(const Mat &points) {
     return makePtr<PlaneModelErrorImpl>(points);
 }
 
-class SphereModelErrorImpl : public SphereModelError {
+class SphereModelErrorImpl : public SphereModelError
+{
 private:
-    const Mat * points_mat;
-    const float * const points;
-    float x, y, z, radius;
+    const Mat *points_mat;
+    const float *const points;
+    //! Center and radius
+    float center_x, center_y, center_z, radius;
     std::vector<float> errors_cache;
     bool cache_valid;
 
 public:
     explicit SphereModelErrorImpl(const Mat &points_)
             : points_mat(&points_), points((float *) points_.data),
-              x(0), y(0), z(0), radius(0),
+              center_x(0), center_y(0), center_z(0), radius(0),
               errors_cache(points_.rows), cache_valid(false)
     {
-
+        CV_DbgAssert(points);
     }
 
     inline void setModelParameters(const Mat &model) override
     {
+        CV_Assert(!model.empty());
+        CV_CheckTypeEQ(model.depth(), CV_64F, "");
 
+        const double *const p = (double *) model.data;
+        float coeff_x = (float) p[0], coeff_y = (float) p[1],
+              coeff_z = (float) p[2], coeff_r = (float) p[3];
+
+        cache_valid = cache_valid && center_x == coeff_x && coeff_y == coeff_y
+                      && coeff_z == coeff_z && radius == coeff_r;
+
+        center_x = coeff_x;
+        center_y = coeff_y;
+        center_z = coeff_z;
+        radius = coeff_r;
     }
 
     inline float getError(int point_idx) const override
     {
+        const float *pts_ptr_base = points + 3 * point_idx;
 
-//        Point3f p = pts(point_idx);
-//        Point3f center(float(model(0)),float(model(1)),float(model(2)));
-//        double distanceFromCenter  = norm(p - center);
-//        double distanceFromSurface = fabs(distanceFromCenter - model(3));
-//
-//        return (float)distanceFromSurface;
-        return 0;
+        float diff_x = center_x - pts_ptr_base[0];
+        float diff_y = center_y - pts_ptr_base[1];
+        float diff_z = center_z - pts_ptr_base[2];
+        float distanceFromCenter = sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
+        double distanceFromSurface = fabs(distanceFromCenter - radius); // TODO To be optimized
+
+        return (float) distanceFromSurface;
     }
 
     const std::vector<float> &getErrors(const Mat &model) override
     {
+        setModelParameters(model);
+
+        if (cache_valid)
+            return errors_cache;
+
+        const int pts_size = points_mat->rows;
+        for (int i = 0; i < pts_size; ++i)
+        {
+            const float *pts_ptr_base = points + 3 * i;
+
+            float diff_x = center_x - pts_ptr_base[0];
+            float diff_y = center_y - pts_ptr_base[1];
+            float diff_z = center_z - pts_ptr_base[2];
+            float distanceFromCenter = sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
+            errors_cache[i] = fabs(distanceFromCenter - radius); // TODO To be optimized
+        }
+
         return errors_cache;
     }
 

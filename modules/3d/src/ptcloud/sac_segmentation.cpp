@@ -61,11 +61,11 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
 //            non_min_solver = CylinderModelNonMinimalSolver::create(points);
 //            error = CylinderModelError::create(points);
 //            break;
-//        case SAC_MODEL_SPHERE:
-//            min_solver = SphereModelMinimalSolver::create(points);
-//            non_min_solver = SphereModelNonMinimalSolver::create(points);
-//            error = SphereModelError::create(points);
-//            break;
+        case SAC_MODEL_SPHERE:
+            min_solver = SphereModelMinimalSolver::create(points);
+            non_min_solver = SphereModelNonMinimalSolver::create(points);
+            error = SphereModelError::create(points);
+            break;
         default:
             CV_Error(cv::Error::StsNotImplemented, "SAC_MODEL type is not implemented!");
     }
