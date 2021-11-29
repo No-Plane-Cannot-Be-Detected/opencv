@@ -3,19 +3,17 @@
 // of this distribution and at http://opencv.org/license.html.
 
 #include "../precomp.hpp"
+#include "../ptcloud/ptcloud_wrapper.hpp"
 #include "../usac.hpp"
 
 namespace cv { namespace usac {
 
-class SphereModelMinimalSolverImpl : public SphereModelMinimalSolver
+class SphereModelMinimalSolverImpl : public SphereModelMinimalSolver, public PointCloudWrapper
 {
-private:
-    const Mat *points_mat;
-    const float *const points;
 
 public:
     explicit SphereModelMinimalSolverImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data)
+            : PointCloudWrapper(points_)
     {
     }
 
@@ -39,14 +37,11 @@ public:
         models.clear();
 
         // Get point data
-        const float *p1_ptr_base = points + 3 * sample[0];
-        const float *p2_ptr_base = points + 3 * sample[1];
-        const float *p3_ptr_base = points + 3 * sample[2];
-        const float *p4_ptr_base = points + 3 * sample[3];
-        float x1 = p1_ptr_base[0], y1 = p1_ptr_base[1], z1 = p1_ptr_base[2];
-        float x2 = p2_ptr_base[0], y2 = p2_ptr_base[1], z2 = p2_ptr_base[2];
-        float x3 = p3_ptr_base[0], y3 = p3_ptr_base[1], z3 = p3_ptr_base[2];
-        float x4 = p4_ptr_base[0], y4 = p4_ptr_base[1], z4 = p4_ptr_base[2];
+        const int p1_idx = sample[0], p2_idx = sample[1], p3_idx = sample[2], p4_idx = sample[3];
+        float x1 = pts_ptr_x[p1_idx], y1 = pts_ptr_y[p1_idx], z1 = pts_ptr_z[p1_idx];
+        float x2 = pts_ptr_x[p2_idx], y2 = pts_ptr_y[p2_idx], z2 = pts_ptr_z[p2_idx];
+        float x3 = pts_ptr_x[p3_idx], y3 = pts_ptr_y[p3_idx], z3 = pts_ptr_z[p3_idx];
+        float x4 = pts_ptr_x[p4_idx], y4 = pts_ptr_y[p4_idx], z4 = pts_ptr_z[p4_idx];
 
         double center_x, center_y, center_z, radius; // Cramer's rule
         {
@@ -115,15 +110,12 @@ Ptr <SphereModelMinimalSolver> SphereModelMinimalSolver::create(const Mat &point
 }
 
 
-class SphereModelNonMinimalSolverImpl : public SphereModelNonMinimalSolver
+class SphereModelNonMinimalSolverImpl : public SphereModelNonMinimalSolver, public PointCloudWrapper
 {
-private:
-    const Mat *points_mat;
-    const float *const points;
 
 public:
     explicit SphereModelNonMinimalSolverImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data)
+            : PointCloudWrapper(points_)
     {
     }
 
@@ -143,7 +135,7 @@ public:
     }
 
     int estimate(const std::vector<int> &sample, int sample_size, std::vector<Mat> &models,
-            const std::vector<double> &weights) const override
+            const std::vector<double> &/*weights*/) const override
     {
         const double inv_sample_size = 1.0 / (double) sample_size;
 
@@ -153,9 +145,10 @@ public:
 
         for (int i = 0; i < sample_size; ++i)
         {
-            float x = points[3 * sample[i]];
-            float y = points[3 * sample[i] + 1];
-            float z = points[3 * sample[i] + 2];
+            int sample_idx = sample[i];
+            float x = pts_ptr_x[sample_idx];
+            float y = pts_ptr_y[sample_idx];
+            float z = pts_ptr_z[sample_idx];
             //            A += Vec3d(x, y, z);
             A0 += x;
             A1 += y;
@@ -174,9 +167,10 @@ public:
         double R0 = 0, R1 = 0, R2 = 0;
         for (int i = 0; i < sample_size; ++i)
         {
-            float x = points[3 * sample[i]];
-            float y = points[3 * sample[i] + 1];
-            float z = points[3 * sample[i] + 2];
+            int sample_idx = sample[i];
+            float x = pts_ptr_x[sample_idx];
+            float y = pts_ptr_y[sample_idx];
+            float z = pts_ptr_z[sample_idx];
 
             //            Vec3d Y = Vec3d(x, y, z) - A;
             //            double Y0Y0 = Y[0] * Y[0];
@@ -237,9 +231,10 @@ public:
             double rsqr = 0;
             for (int i = 0; i < sample_size; ++i)
             {
-                float x = points[3 * sample[i]];
-                float y = points[3 * sample[i] + 1];
-                float z = points[3 * sample[i] + 2];
+                int sample_idx = sample[i];
+                float x = pts_ptr_x[sample_idx];
+                float y = pts_ptr_y[sample_idx];
+                float z = pts_ptr_z[sample_idx];
 
                 double diff_x = x - center_x, diff_y = y - center_y, diff_z = z - center_z;
                 rsqr += diff_x * diff_x + diff_y * diff_y + diff_z * diff_z;

@@ -35,10 +35,29 @@ enum SacModelType
 {
     SAC_MODEL_PLANE,
     SAC_MODEL_SPHERE,
-//    SAC_MODEL_CYLINDER,
+    //    SAC_MODEL_CYLINDER,
 
 };
 
+inline int sacModelMinimumSampleSize(SacModelType model_type)
+{
+    switch (model_type)
+    {
+        case SAC_MODEL_PLANE:
+            return 3;
+        case SAC_MODEL_SPHERE:
+            return 4;
+        default:
+            CV_Error(cv::Error::StsNotImplemented, "SacModel Minimum Sample Size not defined!");
+    }
+}
+
+/** @brief Sample Consensus algorithm segmentation of 3D point cloud model.
+
+@see
+Supported algorithms: enum SacMethod in ptcloud.hpp. \n
+Supported models: enum SacModelType in ptcloud.hpp.
+ */
 class CV_EXPORTS SACSegmentation : public Algorithm
 {
 public:
@@ -47,6 +66,7 @@ public:
     //! No-argument constructor using default configuration
     SACSegmentation()
             : sac_model_type(SAC_MODEL_PLANE), sac_method(SAC_METHOD_RANSAC), threshold(0),
+              radius_min(0), radius_max(0),
               max_iterations(1000), probability(0.99), number_of_models_expected(1),
               number_of_threads(-1), rng_state(0),
               custom_model_constraints(nullptr)
@@ -57,27 +77,19 @@ public:
 
     //-------------------------- Getter and Setter -----------------------
 
-    /**
-     * @brief Get the type of sample consensus model to use
-     *
-     * @param sac_model_type
-     */
+    //! Set the type of sample consensus model to use.
     inline void setSacModelType(SacModelType sac_model_type_)
     {
         sac_model_type = sac_model_type_;
     }
 
-    //~ Get the type of sample consensus model used.
+    //! Get the type of sample consensus model used.
     inline SacModelType getSacModelType() const
     {
         return sac_model_type;
     }
 
-    /**
-     * @brief Set the type of sample consensus method to use.
-     *
-     * @param sac_method_
-     */
+    //! Set the type of sample consensus method to use.
     inline void setSacMethodType(SacMethod sac_method_)
     {
         sac_method = sac_method_;
@@ -102,6 +114,7 @@ public:
     }
 
     //! Set the minimum and maximum radius limits for the model.
+    //! Only used for models whose model parameters include a radius.
     inline void setRadiusLimits(double radius_min_, double radius_max_)
     {
         radius_min = radius_min_;
@@ -109,7 +122,7 @@ public:
     }
 
     //! Get the minimum and maximum radius limits for the model.
-    inline void getRadiusLimits (double &radius_min_, double &radius_max_) const
+    inline void getRadiusLimits(double &radius_min_, double &radius_max_) const
     {
         radius_min_ = radius_min;
         radius_max_ = radius_max;
@@ -197,12 +210,13 @@ public:
     /**
      * @brief Execute segmentation using the sample consensus method.
      *
+     * @param input_pts Original point cloud, vector of Point3 or Mat of size Nx3/3xN.
      * @param[out] labels The label corresponds to the model number, 0 means it
      * does not belong to any model, range [0, Number of final resultant models obtained].
      * @param[out] models_coefficients The resultant models coefficients.
      * @return Number of final resultant models obtained by segmentation.
      */
-    int segment(InputArray input_pts, OutputArray labels, OutputArray models_coefficients);
+    int segment(InputArray input_pts, OutputArray labels, OutputArrayOfArrays models_coefficients);
 
 protected:
 
@@ -216,6 +230,7 @@ protected:
     double threshold;
 
     //! The minimum and maximum radius limits for the model.
+    //! Only used for models whose model parameters include a radius.
     double radius_min, radius_max;
 
     //!  The maximum number of iterations to attempt.
@@ -239,6 +254,7 @@ protected:
     /**
      * @brief Execute segmentation of a single model using the sample consensus method.
      *
+     * @param points Point cloud data, it must be a 3xN CV_32F Mat.
      * @param label label[i] is 1 means point i is inlier point of model
      * @param model_coefficients The resultant model coefficients.
      * @return number of model inliers

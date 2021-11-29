@@ -4,6 +4,7 @@
 
 #include "../precomp.hpp"
 #include "../usac.hpp"
+#include "../ptcloud/ptcloud_wrapper.hpp"
 
 namespace cv { namespace usac {
 class HomographyEstimatorImpl : public HomographyEstimator {
@@ -601,10 +602,8 @@ Ptr<ReprojectionErrorPmatrix> ReprojectionErrorPmatrix::create(const Mat &points
     return makePtr<ReprojectionErrorPmatrixImpl>(points);
 }
 
-class PlaneModelErrorImpl : public PlaneModelError {
+class PlaneModelErrorImpl : public PlaneModelError, public PointCloudWrapper {
 private:
-    const Mat * points_mat;
-    const float * const points;
     //! ax + by + cz + d = 0
     float a, b, c ,d;
     std::vector<float> errors_cache;
@@ -612,7 +611,7 @@ private:
 
 public:
     explicit PlaneModelErrorImpl(const Mat &points_)
-    : points_mat(&points_), points((float *) points_.data),
+    : PointCloudWrapper(points_),
     a(0), b(0), c(0), d(0), errors_cache(points_.rows), cache_valid(false)
     {
         CV_DbgAssert(points);
@@ -644,8 +643,8 @@ public:
 
     inline float getError(int point_idx) const override
     {
-        const float *pts_ptr_base = points + 3 * point_idx;
-        float error = a * pts_ptr_base[0] + b * pts_ptr_base[1] + c * pts_ptr_base[2] + d;
+        float error = a * pts_ptr_x[point_idx] + b * pts_ptr_y[point_idx]
+                      + c * pts_ptr_z[point_idx] + d;
         return error * error;
     }
 
@@ -658,8 +657,7 @@ public:
 
         const int pts_size = points_mat->rows;
         for (int i = 0; i < pts_size; ++i) {
-            const float *pts_ptr_base = points + 3 * i;
-            float error = a * pts_ptr_base[0] + b * pts_ptr_base[1] + c * pts_ptr_base[2] + d;
+            float error = a * pts_ptr_x[i] + b * pts_ptr_y[i] + c * pts_ptr_z[i] + d;
             errors_cache[i] = error * error;
         }
         cache_valid = true;
@@ -675,11 +673,8 @@ Ptr<PlaneModelError> PlaneModelError::create(const Mat &points) {
     return makePtr<PlaneModelErrorImpl>(points);
 }
 
-class SphereModelErrorImpl : public SphereModelError
-{
+class SphereModelErrorImpl : public SphereModelError, public PointCloudWrapper {
 private:
-    const Mat *points_mat;
-    const float *const points;
     //! Center and radius
     float center_x, center_y, center_z, radius;
     std::vector<float> errors_cache;
@@ -687,7 +682,7 @@ private:
 
 public:
     explicit SphereModelErrorImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data),
+            : PointCloudWrapper(points_),
               center_x(0), center_y(0), center_z(0), radius(0),
               errors_cache(points_.rows), cache_valid(false)
     {
@@ -714,15 +709,14 @@ public:
 
     inline float getError(int point_idx) const override
     {
-        const float *pts_ptr_base = points + 3 * point_idx;
+        float diff_x = center_x - pts_ptr_x[point_idx];
+        float diff_y = center_y - pts_ptr_y[point_idx];
+        float diff_z = center_z - pts_ptr_z[point_idx];
+        float distance_from_center = sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
+        float diff_dist = distance_from_center - radius;
+        double distance_square_from_surface = diff_dist * diff_dist; // TODO To be optimized
 
-        float diff_x = center_x - pts_ptr_base[0];
-        float diff_y = center_y - pts_ptr_base[1];
-        float diff_z = center_z - pts_ptr_base[2];
-        float distanceFromCenter = sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
-        double distanceFromSurface = fabs(distanceFromCenter - radius); // TODO To be optimized
-
-        return (float) distanceFromSurface;
+        return (float) distance_square_from_surface;
     }
 
     const std::vector<float> &getErrors(const Mat &model) override
@@ -735,13 +729,12 @@ public:
         const int pts_size = points_mat->rows;
         for (int i = 0; i < pts_size; ++i)
         {
-            const float *pts_ptr_base = points + 3 * i;
-
-            float diff_x = center_x - pts_ptr_base[0];
-            float diff_y = center_y - pts_ptr_base[1];
-            float diff_z = center_z - pts_ptr_base[2];
-            float distanceFromCenter = sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
-            errors_cache[i] = fabs(distanceFromCenter - radius); // TODO To be optimized
+            float diff_x = center_x - pts_ptr_x[i];
+            float diff_y = center_y - pts_ptr_y[i];
+            float diff_z = center_z - pts_ptr_z[i];
+            float distance_from_center = sqrt(diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
+            float diff_dist = distance_from_center - radius;
+            errors_cache[i] = diff_dist * diff_dist; // TODO To be optimized
         }
 
         return errors_cache;
@@ -756,10 +749,8 @@ Ptr<SphereModelError> SphereModelError::create(const Mat &points) {
     return makePtr<SphereModelErrorImpl>(points);
 }
 
-class CylinderModelErrorImpl : public CylinderModelError {
+class CylinderModelErrorImpl : public CylinderModelError, public PointCloudWrapper {
 private:
-    const Mat * points_mat;
-    const float * const points;
     float center_x, center_y, center_z, radius;
     float direction_x, direction_y, direction_z;
     std::vector<float> errors_cache;
@@ -767,7 +758,7 @@ private:
 
 public:
     explicit CylinderModelErrorImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data),
+            : PointCloudWrapper(points_),
               center_x(0), center_y(0), center_z(0), radius(0),
               direction_x(0), direction_y(0), direction_z(0),
               errors_cache(points_.rows), cache_valid(false)

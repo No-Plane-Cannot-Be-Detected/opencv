@@ -19,6 +19,11 @@ namespace cv {
 int
 SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model_coefficients)
 {
+    CV_CheckDepth(points.depth(), points.depth() == CV_32F,
+            "Data with only depth CV_32F are supported");
+    CV_CheckChannelsEQ(points.channels(), 1, "Data with only one channel are supported");
+    CV_CheckEQ(points.rows, 3, "Data with only Mat with 3xN are supported");
+
     // Since error function output squared error distance, so make
     // threshold squared as well
     double _threshold = threshold * threshold;
@@ -56,11 +61,11 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
             non_min_solver = PlaneModelNonMinimalSolver::create(points);
             error = PlaneModelError::create(points);
             break;
-//        case SAC_MODEL_CYLINDER:
-//            min_solver = CylinderModelMinimalSolver::create(points);
-//            non_min_solver = CylinderModelNonMinimalSolver::create(points);
-//            error = CylinderModelError::create(points);
-//            break;
+            //        case SAC_MODEL_CYLINDER:
+            //            min_solver = CylinderModelMinimalSolver::create(points);
+            //            non_min_solver = CylinderModelNonMinimalSolver::create(points);
+            //            error = CylinderModelError::create(points);
+            //            break;
         case SAC_MODEL_SPHERE:
             min_solver = SphereModelMinimalSolver::create(points);
             non_min_solver = SphereModelNonMinimalSolver::create(points);
@@ -127,10 +132,12 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
 
 //-------------------------- segment -----------------------
 int
-SACSegmentation::segment(InputArray input_pts, OutputArray labels, OutputArray models_coefficients)
+SACSegmentation::segment(InputArray input_pts, OutputArray labels,
+        OutputArrayOfArrays models_coefficients)
 {
     Mat points;
-    _getMatFromInputArray(input_pts, points);
+    // Get Mat with 3xN CV_32F
+    _getMatFromInputArray(input_pts, points, 1);
     int pts_size = points.rows * points.cols / 3;
 
     std::vector<int> _labels(pts_size, 0);
@@ -140,26 +147,37 @@ SACSegmentation::segment(InputArray input_pts, OutputArray labels, OutputArray m
     // Keep the index array of the point corresponding to the original point
     AutoBuffer<int> ori_pts_idx(pts_size);
     int *pts_idx_ptr = ori_pts_idx.data();
-    for (int i = 0; i < pts_size; ++i) pts_idx_ptr[i] = i;
+    for (int i = 0; i < pts_size; ++i)
+        pts_idx_ptr[i] = i;
 
+    int min_sample_size = sacModelMinimumSampleSize(sac_model_type);
     for (int model_num = 1; model_num <= number_of_models_expected; ++model_num)
     {
         Mat model_coefficients;
         std::vector<bool> label;
 
         int best_inls = segmentSingle(points, label, model_coefficients);
-        if (best_inls < 1)
+        if (best_inls < min_sample_size)
             break;
 
         _models_coefficients.emplace_back(model_coefficients);
 
+        // Move the outlier to the new point cloud and continue to segment the model
         if (model_num != number_of_models_expected)
         {
             cv::Mat tmp_pts(points);
-            points = cv::Mat(pts_size - best_inls, 3, CV_32F);
+            int next_pts_size = pts_size - best_inls;
+            points = cv::Mat(next_pts_size, 3, CV_32F);
 
-            float *const tmp_pts_ptr = (float *) tmp_pts.data;
-            float *const pts_ptr = (float *) points.data;
+            // Pointer (base address) of access point data x,y,z
+            float *const tmp_pts_ptr_x = (float *) tmp_pts.data;
+            float *const tmp_pts_ptr_y = tmp_pts_ptr_x + pts_size;
+            float *const tmp_pts_ptr_z = tmp_pts_ptr_y + pts_size;
+
+            float *const next_pts_ptr_x = (float *) points.data;
+            float *const next_pts_ptr_y = next_pts_ptr_x + next_pts_size;
+            float *const next_pts_ptr_z = next_pts_ptr_y + next_pts_size;
+
             for (int j = 0, k = 0; k < pts_size; ++k)
             {
                 if (label[k])
@@ -172,15 +190,13 @@ SACSegmentation::segment(InputArray input_pts, OutputArray labels, OutputArray m
                     // If it is not inlier of the known plane,
                     //   add the next iteration to find a new plane
                     pts_idx_ptr[j] = pts_idx_ptr[k];
-                    float *const tmp_ptr_base = tmp_pts_ptr + 3 * k;
-                    float *const pts_fit_ptr_base = pts_ptr + 3 * j;
-                    pts_fit_ptr_base[0] = tmp_ptr_base[0];
-                    pts_fit_ptr_base[1] = tmp_ptr_base[1];
-                    pts_fit_ptr_base[2] = tmp_ptr_base[2];
+                    next_pts_ptr_x[j] = tmp_pts_ptr_x[k];
+                    next_pts_ptr_y[j] = tmp_pts_ptr_y[k];
+                    next_pts_ptr_z[j] = tmp_pts_ptr_z[k];
                     ++j;
                 }
             }
-            pts_size = pts_size - best_inls;
+            pts_size = next_pts_size;
         }
         else
         {
@@ -206,6 +222,7 @@ SACSegmentation::segment(InputArray input_pts, OutputArray labels, OutputArray m
     }
 
 
+    // TODO
     //    Mat(_models_coefficients).copyTo(models_coefficients);
     if (models_coefficients.needed())
     {

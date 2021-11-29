@@ -3,19 +3,17 @@
 // of this distribution and at http://opencv.org/license.html.
 
 #include "../precomp.hpp"
+#include "../ptcloud/ptcloud_wrapper.hpp"
 #include "../usac.hpp"
 
 namespace cv { namespace usac {
 
-class CylinderModelMinimalSolverImpl : public CylinderModelMinimalSolver
+class CylinderModelMinimalSolverImpl : public CylinderModelMinimalSolver, public PointCloudWrapper
 {
-private:
-    const Mat *points_mat;
-    const float *const points;
 
 public:
     explicit CylinderModelMinimalSolverImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data)
+            : PointCloudWrapper(points_)
     {
     }
 
@@ -48,15 +46,12 @@ Ptr <CylinderModelMinimalSolver> CylinderModelMinimalSolver::create(const Mat &p
 }
 
 
-class CylinderModelNonMinimalSolverImpl : public CylinderModelNonMinimalSolver
+class CylinderModelNonMinimalSolverImpl : public CylinderModelNonMinimalSolver, public PointCloudWrapper
 {
-private:
-    const Mat *points_mat;
-    const float *const points;
 
 public:
     explicit CylinderModelNonMinimalSolverImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data)
+            : PointCloudWrapper(points_)
     {
     }
 

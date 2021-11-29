@@ -6,7 +6,7 @@
 #define OPENCV_USAC_USAC_HPP
 
 namespace cv { namespace usac {
-enum EstimationMethod { Homography, Fundamental, Fundamental8, Essential, Affine, P3P, P6P, POINT_CLOUD_MODEL};
+enum EstimationMethod { Homography, Fundamental, Fundamental8, Essential, Affine, P3P, P6P};
 enum VerificationMethod { NullVerifier, SprtVerifier };
 enum PolishingMethod { NonePolisher, LSQPolisher };
 enum ErrorMetric {DIST_TO_LINE, SAMPSON_ERR, SGD_ERR, SYMM_REPR_ERR, FORW_REPR_ERR, RERPOJ};
@@ -525,6 +525,13 @@ public:
 
 class PointCloudModelEstimator : public Estimator {
 public:
+    /** @brief Methods for creating PointCloudModelEstimator.
+     *
+     * @param min_solver_ Minimum solver for estimating the model with minimum samples.
+     * @param non_min_solver_ Non-minimum solver for estimating the model with non-minimum samples.
+     * @param custom_model_constraints_ Custom model constraints for filtering the estimated obtained model.
+     * @return Ptr\<PointCloudModelEstimator\>
+     */
     static Ptr<PointCloudModelEstimator> create (const Ptr<MinimalSolver> &min_solver_,
             const Ptr<NonMinimalSolver> &non_min_solver_,
             ModelConstraintFunctionPtr custom_model_constraints_ = nullptr);
@@ -908,7 +915,6 @@ public:
     virtual int getMaxItersBeforeLO () const = 0;
 
     // setters
-    virtual void setSampleSize (int sample_size_) = 0;
     virtual void setLocalOptimization (LocalOptimMethod lo_) = 0;
     virtual void setKNearestNeighhbors (int knn_) = 0;
     virtual void setNeighborsType (NeighborSearchMethod neighbors) = 0;
@@ -984,7 +990,6 @@ void setParameters (Ptr<Model> &params, EstimationMethod estimator, const UsacPa
 bool run (const Ptr<const Model> &params, InputArray points1, InputArray points2, int state,
       Ptr<RansacOutput> &ransac_output, InputArray K1_, InputArray K2_,
       InputArray dist_coeff1, InputArray dist_coeff2);
-
 }}
 
 #endif //OPENCV_USAC_USAC_HPP

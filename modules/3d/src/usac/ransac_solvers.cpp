@@ -167,8 +167,12 @@ bool UniversalRANSAC::run(Ptr<RansacOutput> &ransac_output) {
     Mat best_model;
     int final_iters;
 
-    const int number_of_threads =
-            config->getNumberOfThreads() == 0 ? getNumThreads() : config->getNumberOfThreads();
+    const int MAX_THREADS = getNumThreads();
+    int number_of_threads = config->getNumberOfThreads();
+    if (number_of_threads == 0 || number_of_threads > MAX_THREADS) {
+        number_of_threads = MAX_THREADS;
+    }
+
     if (number_of_threads < 0) {
         auto update_best = [&] (const Mat &new_model, const Score &new_score) {
             best_score = new_score;
@@ -708,8 +712,6 @@ public:
             case (EstimationMethod::P6P):
                 avg_num_models = 1; time_for_model_est = 300;
                 sample_size = 6; est_error = ErrorMetric ::RERPOJ; break;
-            case (EstimationMethod::POINT_CLOUD_MODEL):
-                break;
             default: CV_Error(cv::Error::StsNotImplemented, "Estimator has not implemented yet!");
         }
 
@@ -729,7 +731,6 @@ public:
     void setPolisher (PolishingMethod polisher_) override { polisher = polisher_; }
     void setParallel (bool is_parallel_) override { is_parallel = is_parallel_; }
     void setError (ErrorMetric error_) override { est_error = error_; }
-    void setSampleSize (int sample_size_) override { sample_size = sample_size_; }
     void setLocalOptimization (LocalOptimMethod lo_) override { lo = lo_; }
     void setKNearestNeighhbors (int knn_) override { k_nearest_neighbors = knn_; }
     void setNeighborsType (NeighborSearchMethod neighbors) override { neighborsType = neighbors; }

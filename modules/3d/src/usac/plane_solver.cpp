@@ -3,20 +3,18 @@
 // of this distribution and at http://opencv.org/license.html.
 
 #include "../precomp.hpp"
+#include "../ptcloud/ptcloud_wrapper.hpp"
 #include "../usac.hpp"
 #include "../ptcloud/ptcloud_utils.hpp"
 
 namespace cv { namespace usac {
 
-class PlaneModelMinimalSolverImpl : public PlaneModelMinimalSolver
+class PlaneModelMinimalSolverImpl : public PlaneModelMinimalSolver, public PointCloudWrapper
 {
-private:
-    const Mat *points_mat;
-    const float *const points;
 
 public:
     explicit PlaneModelMinimalSolverImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data)
+            : PointCloudWrapper(points_)
     {
     }
 
@@ -35,17 +33,17 @@ public:
         return makePtr<PlaneModelMinimalSolverImpl>(*points_mat);
     }
 
+    //! Use the cross product of the vectors in the plane to calculate the plane normal vector
+    //! Use the plane normal vector and the points in the plane to calculate the coefficient d
     int estimate(const std::vector<int> &sample, std::vector<Mat> &models) const override
     {
         models.clear();
 
         // Get point data
-        const float *p1_ptr_base = points + 3 * sample[0];
-        const float *p2_ptr_base = points + 3 * sample[1];
-        const float *p3_ptr_base = points + 3 * sample[2];
-        float x1 = p1_ptr_base[0], y1 = p1_ptr_base[1], z1 = p1_ptr_base[2];
-        float x2 = p2_ptr_base[0], y2 = p2_ptr_base[1], z2 = p2_ptr_base[2];
-        float x3 = p3_ptr_base[0], y3 = p3_ptr_base[1], z3 = p3_ptr_base[2];
+        const int p1_idx = sample[0], p2_idx = sample[1], p3_idx = sample[2];
+        float x1 = pts_ptr_x[p1_idx], y1 = pts_ptr_y[p1_idx], z1 = pts_ptr_z[p1_idx];
+        float x2 = pts_ptr_x[p2_idx], y2 = pts_ptr_y[p2_idx], z2 = pts_ptr_z[p2_idx];
+        float x3 = pts_ptr_x[p3_idx], y3 = pts_ptr_y[p3_idx], z3 = pts_ptr_z[p3_idx];
 
         // v1 = p1p2  v2 = p1p3
         float a1 = x2 - x1;
@@ -64,9 +62,9 @@ public:
         double plane_coeff[4] = {a, b, c, d};
         models.emplace_back(cv::Mat(1, 4, CV_64F, plane_coeff).clone());
 
-//        models = std::vector<Mat>{Mat_<double>(3, 3)};
-//        auto *f = (double *) models[0].data;
-//        f[0] = a, f[1] = b, f[2] = c, f[3] = d;
+        //        models = std::vector<Mat>{Mat_<double>(3, 3)};
+        //        auto *f = (double *) models[0].data;
+        //        f[0] = a, f[1] = b, f[2] = c, f[3] = d;
 
         return 1;
     }
@@ -79,15 +77,12 @@ Ptr <PlaneModelMinimalSolver> PlaneModelMinimalSolver::create(const Mat &points_
 }
 
 
-class PlaneModelNonMinimalSolverImpl : public PlaneModelNonMinimalSolver
+class PlaneModelNonMinimalSolverImpl : public PlaneModelNonMinimalSolver, public PointCloudWrapper
 {
-private:
-    const Mat *points_mat;
-    const float *const points;
 
 public:
     explicit PlaneModelNonMinimalSolverImpl(const Mat &points_)
-            : points_mat(&points_), points((float *) points_.data)
+            : PointCloudWrapper(points_)
     {
     }
 
@@ -106,8 +101,9 @@ public:
         return makePtr<PlaneModelNonMinimalSolverImpl>(*points_mat);
     }
 
+    //! Use total least squares (PCA can achieve the same calculation) to estimate the plane model equation
     int estimate(const std::vector<int> &sample, int sample_size, std::vector<Mat> &models,
-            const std::vector<double> &weights) const override
+            const std::vector<double> &/*weights*/) const override
     {
         models.clear();
 
@@ -116,13 +112,11 @@ public:
         copyPointDataByIdxs(*points_mat, pcaset, sample, sample_size);
 
         cv::PCA pca(pcaset, // pass the data
-                    cv::Mat(), // we do not have a pre-computed mean vector,
+                cv::Mat(), // we do not have a pre-computed mean vector,
                 // so let the PCA engine to compute it
-                    cv::PCA::DATA_AS_ROW, // indicate that the vectors
-                // are stored as matrix rows
-                // (use PCA::DATA_AS_COL if the vectors are
-                // the matrix columns)
-                    3 // specify, how many principal components to retain
+                cv::PCA::DATA_AS_COL, // indicate that the vectors
+                // are stored as matrix columns (3xN Mat, points are arranged in columns)
+                3 // specify, how many principal components to retain
         );
 
 
