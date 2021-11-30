@@ -223,19 +223,20 @@ class PointCloudModelEstimatorImpl : public PointCloudModelEstimator {
 private:
     const Ptr<MinimalSolver> min_solver;
     const Ptr<NonMinimalSolver> non_min_solver;
-    const ModelConstraintFunctionPtr custom_model_constraints;
+    const Ptr<ModelConstraintFunction> custom_model_constraints;
 
     inline int filteringModel(std::vector<Mat> M, int models_count,
             std::vector<Mat> &valid_models) const {
         int valid_models_count = 0;
-        if (nullptr == custom_model_constraints) {
+        if (custom_model_constraints.empty()) {
             valid_models_count = models_count;
             for (int i = 0; i < models_count; ++i)
                 valid_models[i] = M[i];
         } else {
+            ModelConstraintFunction _custom_model_constraints = *custom_model_constraints;
             for (int i = 0; i < models_count; ++i)
                 // filtering Models with custom_model_constraints
-                if ((*custom_model_constraints)(M[i]))
+                if (_custom_model_constraints(M[i]))
                     valid_models[valid_models_count++] = M[i];
         }
 
@@ -245,7 +246,7 @@ private:
 public:
     explicit PointCloudModelEstimatorImpl (const Ptr<MinimalSolver> &min_solver_,
             const Ptr<NonMinimalSolver> &non_min_solver_,
-            const ModelConstraintFunctionPtr custom_model_constraints_) :
+            const Ptr<ModelConstraintFunction> &custom_model_constraints_) :
             min_solver(min_solver_), non_min_solver(non_min_solver_),
             custom_model_constraints(custom_model_constraints_) {}
 
@@ -281,7 +282,7 @@ public:
 };
 Ptr<PointCloudModelEstimator> PointCloudModelEstimator::create (const Ptr<MinimalSolver> &min_solver_,
         const Ptr<NonMinimalSolver> &non_min_solver_,
-        const ModelConstraintFunctionPtr custom_model_constraints_) {
+        const Ptr<ModelConstraintFunction> &custom_model_constraints_) {
     return makePtr<PointCloudModelEstimatorImpl>(min_solver_, non_min_solver_, custom_model_constraints_);
 }
 

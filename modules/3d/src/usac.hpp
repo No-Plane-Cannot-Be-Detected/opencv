@@ -13,15 +13,14 @@ enum ErrorMetric {DIST_TO_LINE, SAMPSON_ERR, SGD_ERR, SYMM_REPR_ERR, FORW_REPR_E
 
 //! Custom function that take the model coefficients and return whether the model is acceptable or not
 //using ModelConstraintFunction = std::function<bool(const Mat &/*model_coefficients*/)>;
-using ModelConstraintFunctionPtr = bool (*)(const Mat &/*model_coefficients*/);
+//using ModelConstraintFunctionPtr = bool (*)(const Mat &/*model_coefficients*/);
+using ModelConstraintFunction = std::function<bool(const std::vector<double> &/*model_coefficients*/)>;
 
 class UsacConfig : public Algorithm {
 public:
-    virtual double getThreshold () const = 0;
     virtual int getMaxIterations () const = 0;
     virtual int getMaxIterationsBeforeLO () const = 0;
     virtual int getMaxNumHypothesisToTestBeforeRejection() const = 0;
-    virtual double getConfidence () const = 0;
     virtual int getRandomGeneratorState () const = 0;
     //! The number of threads to be used.
     //! (0 sets the value automatically, a negative number turns parallelization off)
@@ -38,11 +37,9 @@ public:
 
 class SimpleUsacConfig : public UsacConfig {
 public:
-    virtual void setThreshold(double threshold_) = 0;
     virtual void setMaxIterations(int max_iterations_) = 0;
     virtual void setMaxIterationsBeforeLo(int max_iterations_before_lo_) = 0;
     virtual void setMaxNumHypothesisToTestBeforeRejection(int max_num_hypothesis_to_test_before_rejection_) = 0;
-    virtual void setConfidence(double confidence_) = 0;
     virtual void setRandomGeneratorState(int random_generator_state_) = 0;
     virtual void setNumberOfThreads(int number_of_threads_) = 0;
     virtual void setNeighborsSearchMethod(NeighborSearchMethod neighbors_search_method_) = 0;
@@ -534,7 +531,7 @@ public:
      */
     static Ptr<PointCloudModelEstimator> create (const Ptr<MinimalSolver> &min_solver_,
             const Ptr<NonMinimalSolver> &non_min_solver_,
-            ModelConstraintFunctionPtr custom_model_constraints_ = nullptr);
+            const Ptr<ModelConstraintFunction> &custom_model_constraints_ = nullptr);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////

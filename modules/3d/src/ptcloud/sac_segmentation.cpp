@@ -29,6 +29,9 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
     double _threshold = threshold * threshold;
     int state = (int) rng_state;
     const int points_size = points.rows * points.cols / 3;
+    const double _radius_min = radius_min, _radius_max = radius_min;
+    const Ptr <ModelConstraintFunction> _custom_constraint = custom_model_constraints;
+    Ptr <ModelConstraintFunction> constraint_func = custom_model_constraints;
 
     // RANSAC
     using namespace usac;
@@ -70,6 +73,14 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
             min_solver = SphereModelMinimalSolver::create(points);
             non_min_solver = SphereModelNonMinimalSolver::create(points);
             error = SphereModelError::create(points);
+            constraint_func = makePtr<ModelConstraintFunction>(
+                    [_radius_min, _radius_max, _custom_constraint]
+                            (const std::vector<double> &model_coeffs) {
+                        double radius = model_coeffs[4];
+                        return radius >= _radius_min && radius <= _radius_max &&
+                               (_custom_constraint.empty() || (*_custom_constraint)(model_coeffs));
+                    }
+            );
             break;
         default:
             CV_Error(cv::Error::StsNotImplemented, "SAC_MODEL type is not implemented!");
@@ -82,7 +93,7 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
         return 0;
     }
 
-    estimator = PointCloudModelEstimator::create(min_solver, non_min_solver);
+    estimator = PointCloudModelEstimator::create(min_solver, non_min_solver, constraint_func);
     sampler = UniformSampler::create(state++, min_sample_size, points_size);
     quality = RansacQuality::create(points_size, _threshold, error);
     verifier = ModelVerifier::create();
@@ -97,15 +108,13 @@ SACSegmentation::segmentSingle(Mat &points, std::vector<bool> &label, Mat &model
 
     degeneracy = makePtr<Degeneracy>();
     termination = StandardTerminationCriteria::create
-            (probability, points_size, min_sample_size, max_iterations);
+            (confidence, points_size, min_sample_size, max_iterations);
 
     Ptr <SimpleUsacConfig> usacConfig = SimpleUsacConfig::create();
-    usacConfig->setThreshold(_threshold);
     usacConfig->setMaxIterations(max_iterations);
     usacConfig->setMaxIterationsBeforeLo(_max_iterations_before_lo);
     usacConfig->setMaxNumHypothesisToTestBeforeRejection(
             _max_num_hypothesis_to_test_before_rejection);
-    usacConfig->setConfidence(probability);
     usacConfig->setRandomGeneratorState(state);
     usacConfig->setNumberOfThreads(number_of_threads);
     usacConfig->setNeighborsSearchMethod(_neighbors_search_method);
@@ -167,7 +176,7 @@ SACSegmentation::segment(InputArray input_pts, OutputArray labels,
         {
             cv::Mat tmp_pts(points);
             int next_pts_size = pts_size - best_inls;
-            points = cv::Mat(next_pts_size, 3, CV_32F);
+            points = cv::Mat(3, next_pts_size, CV_32F);
 
             // Pointer (base address) of access point data x,y,z
             float *const tmp_pts_ptr_x = (float *) tmp_pts.data;

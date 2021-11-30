@@ -12,8 +12,8 @@ namespace cv {
 //! @{
 
 //! Custom function that take the model coefficients and return whether the model is acceptable or not
-using ModelConstraintFunctionPtr = bool (*)(const Mat &/*model_coefficients*/);
-
+//using ModelConstraintFunctionPtr = bool (*)(const std::vector<double> &/*model_coefficients*/);
+using ModelConstraintFunction = std::function<bool(const std::vector<double> &/*model_coefficients*/)>;
 
 //! type of the robust estimation algorithm
 enum SacMethod
@@ -65,9 +65,9 @@ public:
 
     //! No-argument constructor using default configuration
     SACSegmentation()
-            : sac_model_type(SAC_MODEL_PLANE), sac_method(SAC_METHOD_RANSAC), threshold(0),
-              radius_min(0), radius_max(0),
-              max_iterations(1000), probability(0.999), number_of_models_expected(1),
+            : sac_model_type(SAC_MODEL_PLANE), sac_method(SAC_METHOD_RANSAC), threshold(0.5),
+              radius_min(DBL_MIN), radius_max(DBL_MAX),
+              max_iterations(1000), confidence(0.999), number_of_models_expected(1),
               number_of_threads(-1), rng_state(0),
               custom_model_constraints(nullptr)
     {
@@ -140,16 +140,16 @@ public:
         return max_iterations;
     }
 
-    //! Set the probability that ensure at least one of selections is an error-free set of data points.
-    inline void setProbability(double probability_)
+    //! Set the confidence that ensure at least one of selections is an error-free set of data points.
+    inline void setConfidence(double confidence_)
     {
-        probability = probability_;
+        confidence = confidence_;
     }
 
-    //! Get the probability that ensure at least one of selections is an error-free set of data points.
-    inline double getProbability() const
+    //! Get the confidence that ensure at least one of selections is an error-free set of data points.
+    inline double getConfidence() const
     {
-        return probability;
+        return confidence;
     }
 
     //! Set the number of models expected.
@@ -196,15 +196,15 @@ public:
     }
 
     //! Set custom model coefficient constraint function
-    inline void setCustomModelConstraints(ModelConstraintFunctionPtr custom_model_constraints_)
+    inline void setCustomModelConstraints(Ptr<ModelConstraintFunction> &custom_model_constraints_)
     {
         custom_model_constraints = custom_model_constraints_;
     }
 
     //! Get custom model coefficient constraint function
-    inline ModelConstraintFunctionPtr getCustomModelConstraints() const
+    inline void getCustomModelConstraints(Ptr<ModelConstraintFunction> &custom_model_constraints_) const
     {
-        return custom_model_constraints;
+        custom_model_constraints_ = custom_model_constraints;
     }
 
     /**
@@ -236,8 +236,8 @@ protected:
     //!  The maximum number of iterations to attempt.
     int max_iterations;
 
-    //! Probability that ensure at least one of selections is an error-free set of data points.
-    double probability;
+    //! Confidence that ensure at least one of selections is an error-free set of data points.
+    double confidence;
 
     //! Expected number of models.
     int number_of_models_expected;
@@ -249,17 +249,17 @@ protected:
     uint64 rng_state;
 
     //! A user defined function that takes model coefficients and returns whether the model is acceptable or not.
-    ModelConstraintFunctionPtr custom_model_constraints;
+    Ptr<ModelConstraintFunction> custom_model_constraints;
 
     /**
      * @brief Execute segmentation of a single model using the sample consensus method.
      *
-     * @param points Point cloud data, it must be a 3xN CV_32F Mat.
+     * @param model_coeffs Point cloud data, it must be a 3xN CV_32F Mat.
      * @param label label[i] is 1 means point i is inlier point of model
      * @param model_coefficients The resultant model coefficients.
      * @return number of model inliers
      */
-    int segmentSingle(Mat &points, std::vector<bool> &label, Mat &model_coefficients);
+    int segmentSingle(Mat &model_coeffs, std::vector<bool> &label, Mat &model_coefficients);
 
 };
 

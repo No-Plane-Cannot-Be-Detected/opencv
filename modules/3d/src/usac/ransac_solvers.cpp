@@ -84,19 +84,17 @@ Ptr<RansacOutput> RansacOutput::create(const Mat &model_, const std::vector<bool
 
 class SimpleUsacConfigImpl : public SimpleUsacConfig {
 public:
-    SimpleUsacConfigImpl() : threshold(1.5), max_iterations(2500), max_iterations_before_lo(100),
-                             max_num_hypothesis_to_test_before_rejection(15), confidence(0.999),
+    SimpleUsacConfigImpl() : max_iterations(2500), max_iterations_before_lo(100),
+                             max_num_hypothesis_to_test_before_rejection(15),
                              random_generator_state(0), number_of_threads(-1),
                              neighbors_search_method(NeighborSearchMethod::NEIGH_GRID),
                              sampling_method(SamplingMethod::SAMPLING_UNIFORM),
                              score_method(ScoreMethod::SCORE_METHOD_RANSAC),
                              lo_method(LocalOptimMethod::LOCAL_OPTIM_INNER_LO), need_mask(true) {}
 
-    double getThreshold() const override { return threshold; }
     int getMaxIterations() const override { return max_iterations; }
     int getMaxIterationsBeforeLO() const override { return max_iterations_before_lo; }
     int getMaxNumHypothesisToTestBeforeRejection() const override { return max_num_hypothesis_to_test_before_rejection; }
-    double getConfidence() const override { return confidence; }
     int getRandomGeneratorState() const override { return random_generator_state; }
     int getNumberOfThreads() const override { return number_of_threads; }
     NeighborSearchMethod getNeighborsSearchMethod() const override { return neighbors_search_method; }
@@ -105,12 +103,10 @@ public:
     LocalOptimMethod getLOMethod() const override { return lo_method; }
     bool isMaskRequired() const override { return need_mask; }
 
-    void setThreshold(double threshold_) override { threshold = threshold_; }
     void setMaxIterations(int max_iterations_) override { max_iterations = max_iterations_; }
     void setMaxIterationsBeforeLo(int max_iterations_before_lo_) override { max_iterations_before_lo = max_iterations_before_lo_; }
     void setMaxNumHypothesisToTestBeforeRejection(int max_num_hypothesis_to_test_before_rejection_)
          override  { max_num_hypothesis_to_test_before_rejection = max_num_hypothesis_to_test_before_rejection_; }
-    void setConfidence(double confidence_) override  { confidence = confidence_; }
     void setRandomGeneratorState(int random_generator_state_) override  { random_generator_state = random_generator_state_; }
     void setNumberOfThreads(int number_of_threads_) override  { number_of_threads = number_of_threads_; }
     void setNeighborsSearchMethod(NeighborSearchMethod neighbors_search_method_) override { neighbors_search_method = neighbors_search_method_; }
@@ -120,11 +116,9 @@ public:
     void maskRequired (bool need_mask_) override { need_mask = need_mask_; }
 
 protected:
-    double threshold;
     int max_iterations;
     int max_iterations_before_lo;
     int max_num_hypothesis_to_test_before_rejection;
-    double confidence;
     int random_generator_state;
     //! The number of threads to be used.
     //! (0 sets the value automatically, a negative number turns parallelization off)
@@ -806,11 +800,9 @@ Ptr<Model> Model::create(double threshold_, EstimationMethod estimator_, Samplin
 void modelParamsToUsacConfig (Ptr<SimpleUsacConfig> &config, const Ptr<const Model> &params) {
     config = SimpleUsacConfig::create();
 
-    config->setThreshold(params->getThreshold());
     config->setMaxIterations(params->getMaxIters());
     config->setMaxIterationsBeforeLo(params->getMaxItersBeforeLO());
     config->setMaxNumHypothesisToTestBeforeRejection(params->getMaxNumHypothesisToTestBeforeRejection());
-    config->setConfidence(params->getConfidence());
     config->setRandomGeneratorState(params->getRandomGeneratorState());
     config->setNumberOfThreads(params->isParallel() ? 0 : -1);
     config->setNeighborsSearchMethod(params->getNeighborsSearch());
