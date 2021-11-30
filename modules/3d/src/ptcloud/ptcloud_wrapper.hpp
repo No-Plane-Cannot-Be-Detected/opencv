@@ -12,7 +12,7 @@ namespace cv {
 A wrapper that encapsulates pointers to access point cloud data,
 making the construction of point cloud data access simpler.
 
-@note The point cloud data XYZ matrix should be 3xN, single channel, CV_32F
+@note The point cloud data XYZ matrix should be 3xN, single channel, CV_32F, continuous in memory.
 
  */
 class PointCloudWrapper
@@ -36,6 +36,8 @@ public:
                 "Data with only one channel are supported");
         CV_CheckEQ(points_.rows, 3,
                 "Data with only Mat with 3xN are supported");
+        CV_Check(points_.isContinuous(), points_.isContinuous(),
+                "The matrix should be continuous");
     }
 
 };

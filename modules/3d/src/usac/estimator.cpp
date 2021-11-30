@@ -612,9 +612,8 @@ private:
 public:
     explicit PlaneModelErrorImpl(const Mat &points_)
     : PointCloudWrapper(points_),
-    a(0), b(0), c(0), d(0), errors_cache(points_.rows), cache_valid(false)
+    a(0), b(0), c(0), d(0), errors_cache(pts_cnt), cache_valid(false)
     {
-        CV_DbgAssert(points);
     }
 
     inline void setModelParameters(const Mat &model) override
@@ -655,8 +654,7 @@ public:
         if (cache_valid)
             return errors_cache;
 
-        const int pts_size = points_mat->rows;
-        for (int i = 0; i < pts_size; ++i) {
+        for (int i = 0; i < pts_cnt; ++i) {
             float error = a * pts_ptr_x[i] + b * pts_ptr_y[i] + c * pts_ptr_z[i] + d;
             errors_cache[i] = error * error;
         }
@@ -684,9 +682,8 @@ public:
     explicit SphereModelErrorImpl(const Mat &points_)
             : PointCloudWrapper(points_),
               center_x(0), center_y(0), center_z(0), radius(0),
-              errors_cache(points_.rows), cache_valid(false)
+              errors_cache(pts_cnt), cache_valid(false)
     {
-        CV_DbgAssert(points);
     }
 
     inline void setModelParameters(const Mat &model) override
@@ -726,8 +723,7 @@ public:
         if (cache_valid)
             return errors_cache;
 
-        const int pts_size = points_mat->rows;
-        for (int i = 0; i < pts_size; ++i)
+        for (int i = 0; i < pts_cnt; ++i)
         {
             float diff_x = center_x - pts_ptr_x[i];
             float diff_y = center_y - pts_ptr_y[i];
@@ -761,7 +757,7 @@ public:
             : PointCloudWrapper(points_),
               center_x(0), center_y(0), center_z(0), radius(0),
               direction_x(0), direction_y(0), direction_z(0),
-              errors_cache(points_.rows), cache_valid(false)
+              errors_cache(pts_cnt), cache_valid(false)
 
     {
 

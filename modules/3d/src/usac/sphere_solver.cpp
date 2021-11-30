@@ -81,6 +81,10 @@ public:
             d2 = a11 * (b2 * a33 - a23 * b3) + b1 * tmp2 + a13 * (a21 * b3 - b2 * a31);
             d3 = a11 * (a22 * b3 - b2 * a32) + a12 * (b2 * a31 - a21 * b3) + b1 * tmp3;
 
+            if (d == 0) {
+                return 0;
+            }
+
             d = 0.5 / d;
             center_x = d1 * d;
             center_y = d2 * d;

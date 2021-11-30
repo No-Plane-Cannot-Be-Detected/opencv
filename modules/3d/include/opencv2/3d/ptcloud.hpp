@@ -67,7 +67,7 @@ public:
     SACSegmentation()
             : sac_model_type(SAC_MODEL_PLANE), sac_method(SAC_METHOD_RANSAC), threshold(0),
               radius_min(0), radius_max(0),
-              max_iterations(1000), probability(0.99), number_of_models_expected(1),
+              max_iterations(1000), probability(0.999), number_of_models_expected(1),
               number_of_threads(-1), rng_state(0),
               custom_model_constraints(nullptr)
     {
