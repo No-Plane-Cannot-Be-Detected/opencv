@@ -43,13 +43,13 @@ struct GAPI_EXPORTS VPLDX11AccelerationPolicy final: public VPLAccelerationPolic
     void init(session_t session) override;
     void deinit(session_t session) override;
     pool_key_t create_surface_pool(const mfxFrameAllocRequest& alloc_request,
-                                   mfxVideoParam& param) override;
+                                   mfxFrameInfo& info) override;
     surface_weak_ptr_t get_free_surface(pool_key_t key) override;
     size_t get_free_surface_count(pool_key_t key) const override;
     size_t get_surface_count(pool_key_t key) const override;
 
     cv::MediaFrame::AdapterPtr create_frame_adapter(pool_key_t key,
-                                                    mfxFrameSurface1* surface) override;
+                                                    const FrameConstructorArgs &params) override;
 private:
     ID3D11Device *hw_handle;
     ID3D11DeviceContext* device_context;
